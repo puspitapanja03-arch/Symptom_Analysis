@@ -1,0 +1,72 @@
+!pip install -qU google-generativeai==0.8.5 google-ai-generativelanguage==0.6.15 langgraph langchain langchain-google-genai openai
+import os
+import getpass
+from langgraph.graph import StateGraph, END
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import HumanMessage
+os.environ['GOOGLE_API_KEY'] = getpass.getpass("Enter the Gemini API Key")
+llm = ChatGoogleGenerativeAI(model = "models/gemini-1.5-flash-latest", temperature =0.2)
+def get_symptom(state: dict) ->dict:
+  symptom = input("Welcome to XYZ hospital, Please enter your symptom")
+  state["symptom"] = symptom
+  return state
+def classify_symptom(state: dict) -> dict:
+  prompt = (
+      "You are a helpful Medical Assistant, Classify the symptoms below into one of the categories \n"
+      "-General\n -Emergency \n -mental health \n"
+      f"Symptom : {state['symptom']} \n"
+      "Respond only with one word : General, Emergency Or Mental Health"
+      "#Example : input : I have fever, Output : General"
+  )
+  response = llm.invoke([HumanMessage(content=prompt)])
+  category = response.content.strip()
+  print(f"LLM classifies the symptom as : {category}")  #debug
+  state["category"] = category
+  return state
+def symptom_router(state:dict) -> dict:
+  cat = state["category"].lower()   #General, general, Mental mental
+  if "general" in cat:
+    return"general"
+  elif "emergency" in cat:
+    return"emergency"
+  elif "mental" in cat:
+    return"mental_health"
+  else:
+    return"general"
+def classify_symptom(state: dict) -> dict:
+  prompt = (
+      "You are a helpful Medical Assistant, Classify the symptoms below into one of the categories \n"
+      "-General\n -Emergency \n -mental health \n"
+      f"Symptom : {state['symptom']} \n"
+      "Respond only with one word : General, Emergency Or Mental Health"
+      "#Example : input : I have fever, Output : General"
+  )
+  response = llm.invoke([HumanMessage(content=prompt)])
+  category = response.content.strip()
+  print(f"LLM classifies the symptom as : {category}")  #debug
+  state["category"] = category
+  return state
+builder = StateGraph(dict)
+
+#define the nodes
+builder.set_entry_point("get_symptom")
+builder.add_node("get_symptom", get_symptom)
+builder.add_node("classify", classify_symptom)
+builder.add_node("general", general_node)
+builder.add_node("emergency", emergency_node)
+builder.add_node("mental_health", mental_health_node)
+
+builder.add_edge("get_symptom", "classify")
+builder.add_conditional_edges("classify", symptom_router, {
+    "general": "general",
+    "emergency": "emergency",
+    "mental_health": "mental_health"
+})
+
+builder.add_edge("general", END)
+builder.add_edge("emergency", END)
+builder.add_edge("mental_health", END)
+graph = builder.compile()
+final_state = graph.invoke({})
+print("final Output \n")
+print(final_state["answer"])
